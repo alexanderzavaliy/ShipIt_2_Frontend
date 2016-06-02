@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+	  <link rel="stylesheet" type="text/css" href="mybids.css">
+  	  <script src="/scripts/jquery-1.10.2.min.js" type="text/javascript"></script>
+  	  <script src="/scripts/jquery.signalR-2.2.0.min.js" type="text/javascript"></script>  
+</head>
+<body>
+
+My Bids
+<div>Operation type: 
+  <select id='operationType'>
+    <option>Buy</option>
+    <option>Sell</option>
+  </select></div>
+<div>Currency: <input id='currency'></input></div>
+<div>Amount: <input id='amount'></input></div>
+<div>Price: <input id='price'></input></div>
+<button type="button" onclick="sendLogoutRequest()">Logout</button>
+
+<button type="button" onclick="addButtonClick()">Add</button>
+
+<div id="openModal" class="modalDialog">
+    <div>
+        <div>Login <input id="login"></input></div>
+        <div>Password <input id="password"></input></div>
+        <button type="button" onclick="sendLoginRequest()">Enter</button>
+    </div>
+</div>
+
+
+
+<script>
+    var signalrServerUrl = 'http://localhost:8100';
+	var signalrHubName = 'bidsHub';
+	var signalrConnectionTimer;
+	var bidIdPrefix = 'bid_';
+	var mybidsLinkId = 'mybids';
+	function startSignalrConnectionTimer()
+	{
+	    return setInterval(function()
+			 {
+				console.log("tick");
+				connection.start().done(function()
+                {
+                  console.log('Now connected, connection ID=' + connection.id);
+                }).fail(function()
+				{
+				  console.log('Could not connect');
+				});
+			 }, 5000);
+	}
+
+	function addButtonClick()
+	{
+        createCookie("", "ohoho", "55", 5);
+	    var operationType = $('#operationType option:selected').text();
+	    var currency = $('#currency').val();
+		var amount = $('#amount').val();
+		var price = $('#price').val();
+		var poster = 'john';
+		if ((currency !== "") && ((price !== "") || (amount !== "")))
+		{
+             price = +price;
+             amount = +amount;
+		     var errMsg = "";
+			 if ((amount === NaN) || (amount % 1 !== 0))
+			 {
+			     errMsg += 'amount - should be integer; ';
+			 }
+			 if (isNaN(price))
+			 {
+				 errMsg += 'price - should be integer or float, dot-separated ';
+			 }
+			 if (errMsg !== "")
+			 {
+				 alert(errMsg);
+                 return;
+			 }
+			 else
+			 {
+			     hubProxy.invoke('insertBid', operationType, currency, amount, price, poster);
+			 }
+		}
+		else
+		{
+		 	 alert('Currency AND (price OR amount) fields should be filled');
+		}
+	}
+
+	function deleteButtonClick(btn)
+	{
+	    var bidId = getDisplayedBidId($(btn).parent());
+	    hubProxy.invoke('deleteBid', parseInt(bidId));
+	}
+
+    $(document).ready(function ()
+    {
+        createCookie("192.168.0.104", "dd", "cc", 5);
+        showAuthenticateForm(true);
+    });
+
+    function showAuthenticateForm(val)
+    {
+		if (typeof val === 'boolean')
+		{
+			if (val === true)
+			{
+				$('#openModal').css('opacity', '1.0');
+				$('#openModal').css('pointer-events', 'auto');
+			}
+			else
+			{
+				$('#openModal').css('opacity', '0.0');
+				$('#openModal').css('pointer-events', 'none');
+			}
+		}
+    }
+
+    function sendLoginRequest()
+    {
+        var login = $('#login').val();
+        var password = 	$('#password').val();
+        hubProxy.invoke('login', login, password);
+    }
+
+	function sendLogoutRequest()
+	{
+		hubProxy.invoke('logout', document.cookie);
+	}
+
+
+	function createCookie(domain, name,value,days)
+	{
+		if (days)
+		{
+			var date = new Date();
+			date.setTime(date.getTime()+(days*24*60*60*1000));
+			var expires = " expires="+date.toGMTString();
+		}
+    	else var expires = "";
+   		document.cookie = name+"="+value+ ";" + expires+"; path=/;" + " domain=" + domain + ";";
+    }
+
+	function readCookie(name)
+	{
+		var nameEQ = name + "=";
+		var ca = document.cookie.split(';');
+		for(var i=0; i < ca.length;i++)
+		{
+			var c = ca[i];
+			while (c.charAt(0)==' ') c = c.substring(1,c.length);
+			if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+		}
+    	return null;
+	}
+
+	function deleteCookie(name)
+	{
+		 createCookie(name,"",-1);
+	}
+
+
+</script>
+
+<script>
+  		         var connection = $.hubConnection(signalrServerUrl + '/signalr');
+		   		 connection.stateChanged(function (change)
+				 {
+				    switch (change.newState)
+					{
+						   case $.signalR.connectionState.connecting:   console.log('Connecting');
+						                                                break;
+						   case $.signalR.connectionState.connected:    {
+						   												   console.log('Connected');
+																		   clearTimeout(signalrConnectionTimer);
+						   												   hubProxy.invoke('GetBidsForPoster', 'john');
+						                                                }
+																		break;
+					 	   case $.signalR.connectionState.reconnecting: console.log('Re-connecting');
+						                                                break;
+						   case $.signalR.connectionState.disconnected: {
+						   												  clearTimeout(signalrConnectionTimer);
+						   												  signalrConnectionTimer = startSignalrConnectionTimer();
+						                                                  console.log('Disconnected');
+						                                                }
+																		break;
+						   default: break;
+					}
+                });
+
+				 var hubProxy = connection.createHubProxy(signalrHubName);
+				 if (hubProxy !== undefined)
+				 {
+				    alert('Hub ok');
+				 	hubProxy.on('jsAddBids', function(bids)
+					{
+					     addDisplayedBids(bids)
+					});
+
+					hubProxy.on('jsAddBid', function(bid)
+					{
+					 	 addDisplayedBid(bid);
+					});
+
+					hubProxy.on('jsRemoveBid', function(bidId)
+					{
+					     removeDisplayedBid(bidId);
+					});
+
+					hubProxy.on('jsUpdateBid', function(bidId)
+					{
+
+					});
+
+                     hubProxy.on('jsCreateCookie', function(domain, name, value, days)
+                     {
+                         createCookie(domain, name, value, days);
+                         showAuthenticateForm(false);
+                     });
+
+					 hubProxy.on('jsDeleteCookie', function(name)
+					 {
+						 deleteCookie(name);
+						 showAuthenticateForm(true);
+					 });
+
+				 }
+				 signalrConnectionTimer = startSignalrConnectionTimer();
+</script>
+
+<script>
+	function addDisplayedBids(bids)
+	{
+    	for (var i = 0; i < bids.length; i++)
+        {
+             var bid = bids[i];
+    	 	 addDisplayedBid(bid);
+    	}
+	}
+
+	function addDisplayedBid(bid)
+	{
+	    $('body').append('<div class="bidDiv" id=' + bidIdPrefix + bid.id + '>' + bid.poster + ' ' + bid.operationType + ' ' + bid.currency + ' ' + bid.amount + ' ' + bid.price + ' <button type="button" onclick="deleteButtonClick(this)">Delete</button>' + '</div>');
+	}
+	
+	function modifyDisplayedBid(bidJson)
+	{
+	 	bidIdsSet = getDisplayedBidIds();
+		if (bidIdsSet.has(bidJson.id))
+		{
+		   $("#" + bidIdPrefix + bidJson.id).html(bidJson.applicant + ' ' + bidJson.amount);
+		   alert($("#" + bidIdPrefix + bidJson.id).html());
+		}
+	}
+	
+	function removeDisplayedBid(bidId)
+	{
+	    bidId = bidId + "";
+	 	bidIdsSet = getDisplayedBidIds();
+		if (bidIdsSet.has(bidId))
+		{
+		    $("#" + bidIdPrefix + bidId).remove();
+		}
+	}
+	
+	function getDisplayedBidIds()
+	{
+		var bidSet = new Set();
+		var bidDivs = $(".bidDiv").each(function(i)
+		{
+		 	bidId = getDisplayedBidId($(this));
+			bidSet.add(bidId);
+		}); 
+		return bidSet;
+	}
+	
+	function getDisplayedBidId(bidDivJquery)
+	{
+	 	var bidId = bidDivJquery.attr('id').substring(bidIdPrefix.length, bidDivJquery.attr('id').length);
+		return bidId;
+	}
+	
+</script>
+
+</body>
+</html>
