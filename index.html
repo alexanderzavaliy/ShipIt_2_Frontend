@@ -1,163 +1,444 @@
 <!DOCTYPE html>
 <html>
 <head>
-	  <link rel="stylesheet" type="text/css" href="index.css">
-  	  <script src="/scripts/jquery-1.10.2.min.js" type="text/javascript"></script>
-  	  <script src="/scripts/jquery.signalR-2.2.0.min.js" type="text/javascript"></script>
+    <link rel="stylesheet" type="text/css" href="css/index.css">
+    <link rel="stylesheet" type="text/css" href="/scripts/bootstrap-3.3.6-dist/css/bootstrap.min.css">
+    <script src="/scripts/jquery/jquery-1.10.2.min.js" type="text/javascript"></script>
+    <script src="/scripts/signalr/jquery.signalR-2.2.0.min.js" type="text/javascript"></script>
+    <script src="/scripts/bootstrap-3.3.6-dist/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/scripts/bootbox-4.4.0/bootbox.js" type="text/javascript"></script>
+
 </head>
 <body>
-<a id="mybids" href="">my bids</a>
+<a id="myorders" href="">Manage my orders</a>
 Hello
+
+
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" role="dialog">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Add Order</h4>
+            </div>
+            <div class="modal-body">
+                <div class="btn-group">
+                    <button id="orderTypeButton" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        Buy
+                        <span class="caret"></span>
+                    </button>
+                    <ul id="orderTypeItems" class="dropdown-menu">
+                        <li role="separator" class="divider"></li>
+                        <li><a href="#">Buy</a></li>
+                        <li><a href="#">Sell</a></li>
+                        <li role="separator" class="divider"></li>
+                    </ul>
+                </div>
+                <div class="help-block"></div>
+                <div class="btn-group">
+                    <button id="orderInstrumentButton" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        USD
+                        <span class="caret"></span>
+                    </button>
+                    <ul id="orderInstrumentItems" class="dropdown-menu">
+                        <li><a href="#">Action</a></li>
+                        <li><a href="#">Another action</a></li>
+                        <li><a href="#">Something else here</a></li>
+                        <li role="separator" class="divider"></li>
+                        <li><a href="#">Separated link</a></li>
+                    </ul>
+                </div>
+                <div class="help-block"></div>
+                <div class="col-xs-25">
+                    <input id="amount" type="text" class="form-control" placeholder="Amount" aria-describedby="basic-addon1">
+                </div>
+                <div class="help-block"></div>
+                <div class="col-xs-25">
+                    <input id="price" type="text" class="form-control" placeholder="Price" aria-describedby="basic-addon1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id='confirmAddOrder' type="button" class="btn btn-primary" data-dismiss="modal" style="float:left">Ok</button>
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="ordersContainer">
+    <table id="ordersTable" class="table table-bordered table-hover">
+        <thead>
+            <tr>
+                <th>id</th>
+                <th>ownerId</th>
+                <th>instrumentId</th>
+                <th>createdDate</th>
+                <th>endDate</th>
+                <th>type</th>
+                <th>price</th>
+                <th>amount</th>
+                <th>status</th>
+                <th>executorId</th>
+                <th>executionDate</th>
+            </tr>
+        </thead>
+        <tbody id="ordersTableBody">
+        </tbody>
+    </table>
+</div>
+
+<div id="footer">
+    <button type="button" class="btn btn-default" onclick="addOrderButtonClick()">Add Order</button>
+    <div id="rightFooterSide">
+        <button id='logoutButton' type="button" class="connection-button btn btn-default" onclick="sendLogoutRequest()">Logout</button>
+        <button type="button" class="btn btn-success">Connected</button>
+    </div>
+</div>
+
+
+<div id="openModal" class="modalDialog">
+    <div>
+        <div class="help-block"></div>
+        <div class="col-xs-25">
+            <input id='login' type="text" class="form-control" placeholder="Login" aria-describedby="basic-addon1">
+        </div>
+        <div class="help-block"></div>
+        <div class="col-xs-25">
+            <input id='password' type="text" class="form-control" placeholder="Password" aria-describedby="basic-addon1">
+        </div>
+        <div class="help-block"></div>
+        <div class="col-xs-25">
+            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Enter</button>
+            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Forgot</button>
+            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Register</button>
+        </div>
+    </div>
+</div>
+
 
 <script>
     var htmlServerUrl = 'http://localhost:8200';
     var signalrServerUrl = 'http://localhost:8100';
-    var signalrHubName = 'bidsHub';
-	var signalrConnectionTimer;
-	var bidIdPrefix = 'bid_';
-	var mybidsLinkId = 'mybids';
-	function startSignalrConnectionTimer()
-	{
-	    return setInterval(function()
-			 {
-				console.log("tick");
-				connection.start().done(function()
-                {
-                  console.log('Now connected, connection ID=' + connection.id);
-                }).fail(function()
-				{
-				  console.log('Could not connect');
-				});
-			 }, 5000);
-	}
+    var signalrHubName = 'ordersHub';
+    var signalrConnectionTimer;
+    var orderIdPrefix = 'order_';
+    var orderRowClassName = 'orderRow';
+    var myOrdersLinkId = 'myorders';
 
-	$(document).ready(function()
-	{
-     	$('#' + mybidsLinkId).click(function()
-		{
-           console.log('clicked');
-    	   var win = window.open(htmlServerUrl + '/mybids.html', '_blank');
-            if(win){
+    $(document).ready(function()
+    {
+        $('#' + myOrdersLinkId).click(function()
+        {
+            console.log('clicked');
+            var win = window.open(htmlServerUrl + '/myorders.html', '_blank');
+            if(win)
+            {
                 //Browser has allowed it to be opened
                 win.focus();
-            }else{
+            }
+            else
+            {
                 //Broswer has blocked it
                 alert('Please allow popups for this site');
             }
-		});
-	});
+        });
 
-</script>
-
-<script>
-  		         var connection = $.hubConnection(signalrServerUrl + '/signalr');
-		   		 connection.stateChanged(function (change)
-				 {
-				    switch (change.newState)
-					{
-						   case $.signalR.connectionState.connecting:   console.log('Connecting');
-						                                                break;
-						   case $.signalR.connectionState.connected:    {
-						   												   console.log('Connected');
-																		   clearTimeout(signalrConnectionTimer);
-						   												   hubProxy.invoke('GetAllBids');
-						                                                }
-																		break;
-					 	   case $.signalR.connectionState.reconnecting: console.log('Re-connecting');
-						                                                break;
-						   case $.signalR.connectionState.disconnected: {
-						   												  clearTimeout(signalrConnectionTimer);
-						   												  signalrConnectionTimer = startSignalrConnectionTimer();
-						                                                  console.log('Disconnected');
-						                                                }
-																		break;
-						   default: break;
-					}
-                });
-
-				 var hubProxy = connection.createHubProxy(signalrHubName);
-				 if (hubProxy !== undefined)
-				 {
-				    alert("Hub ok");
-				 	hubProxy.on('jsAddBids', function(bids)
-					{
-					     addDisplayedBids(bids)
-					});
-
-					hubProxy.on('jsAddBid', function(bid)
-					{
-					 	 addDisplayedBid(bid);
-					});
-
-					hubProxy.on('jsRemoveBid', function(bidId)
-					{
-					     removeDisplayedBid(bidId);
-					});
-
-					hubProxy.on('jsUpdateBid', function(bidId)
-					{
-
-					});
-				 }
-				 signalrConnectionTimer = startSignalrConnectionTimer();
-</script>
-
-<script>
-	function removeAllDisplayedBids()
-	{
-		$('.bidDiv').remove();
-	}
-
-	function addDisplayedBids(bids)
-	{
-    	for (var i = 0; i < bids.length; i++)
+        $('#orderTypeItems li').on('click', function()
         {
-             var bid = bids[i];
-    	 	 addDisplayedBid(bid);
-    	}
-	}
+            var disclosureButton = ' <span class="caret">';
+            $('#orderTypeButton').html($(this).text() + disclosureButton);
+        });
 
-	function addDisplayedBid(bid)
-	{
-	    $('body').append('<div class="bidDiv" id=' + bidIdPrefix + bid.id + '>' + bid.poster + ' ' + bid.operationType + ' ' + bid.currency + ' ' + bid.amount + ' ' + bid.price + '</div>');
-	}
+        $('#orderInstrumentItems li').on('click', function()
+        {
+            var disclosureButton = ' <span class="caret">';
+            $('#orderInstrumentButton').html($(this).text() + disclosureButton);
+        });
+    });
 
-	function modifyDisplayedBid(bidJson)
-	{
-	 	bidIdsSet = getDisplayedBidIds();
-		if (bidIdsSet.has(bidJson.id))
-		{
-		   $("#" + bidIdPrefix + bidJson.id).html(bidJson.applicant + ' ' + bidJson.amount);
-		   alert($("#" + bidIdPrefix + bidJson.id).html());
-		}
-	}
+    function startSignalrConnectionTimer()
+    {
+        return setInterval(function()
+        {
+            console.log("tick");
+            connection.start().done(function()
+            {
+                console.log('Now connected, connection ID=' + connection.id);
+            }).fail(function()
+            {
+                console.log('Could not connect');
+            });
+        }, 5000);
+    }
 
-	function removeDisplayedBid(bidId)
-	{
-	    bidId = bidId + "";
-	 	bidIdsSet = getDisplayedBidIds();
-		if (bidIdsSet.has(bidId))
-		{
-		    $("#" + bidIdPrefix + bidId).remove();
-		}
-	}
 
-	function getDisplayedBidIds()
-	{
-		var bidSet = new Set();
-		var bidDivs = $(".bidDiv").each(function(i)
-		{
-		 	bidId = getDisplayedBidId($(this));
-			bidSet.add(bidId);
-		});
-		return bidSet;
-	}
 
-	function getDisplayedBidId(bidDivJquery)
-	{
-	 	var bidId = bidDivJquery.attr('id').substring(bidIdPrefix.length, bidDivJquery.attr('id').length);
-		return bidId;
-	}
+    function addOrderButtonClick()
+    {
+        //<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#myModal">Open Modal</button>
+        $('#myModal').on('shown.bs.modal', function ()
+        {
+            $('#confirmAddOrder').focus();
+            var type = $('#orderTypeButton').text();
+            var instrument = $('#orderTypeButton').text();
+            var amount = $('#amount').val();
+            var price = $('#price').val();
+            if ((currency !== "") && ((price !== "") || (amount !== ""))) {
+                price = +price;
+                amount = +amount;
+                var errMsg = "";
+                if ((amount === NaN) || (amount % 1 !== 0)) {
+                    errMsg += 'amount - should be integer; ';
+                }
+                if (isNaN(price)) {
+                    errMsg += 'price - should be integer or float, dot-separated ';
+                }
+                if (errMsg !== "") {
+                    alert(errMsg);
+                    return;
+                }
+                else
+                {
+                    hubProxy.invoke('insertOrder', type, currency, amount, price, poster);
+                }
+            }
+            else
+            {
+                alert('Currency AND (price OR amount) fields should be filled');
+            }
+        })
+        $('#myModal').modal();
+    }
+
+    function sendLogoutRequest()
+    {
+        hubProxy.invoke('logout', document.cookie);
+    }
+
+    function showAuthenticateForm(val)
+    {
+        if (typeof val === 'boolean')
+        {
+            if (val === true)
+            {
+                $('#openModal').css('opacity', '1.0');
+                $('#openModal').css('pointer-events', 'auto');
+            }
+            else
+            {
+                $('#openModal').css('opacity', '0.0');
+                $('#openModal').css('pointer-events', 'none');
+            }
+        }
+    }
+
+    function sendLoginRequest()
+    {
+        var login = $('#login').val();
+        var password = 	$('#password').val();
+        hubProxy.invoke('login', login, password);
+    }
+
+    function createCookie(domain, name,value,days)
+    {
+        if (days)
+        {
+            var date = new Date();
+            date.setTime(date.getTime()+(days*24*60*60*1000));
+            var expires = " expires="+date.toGMTString();
+        }
+        else var expires = "";
+        document.cookie = name+"="+value+ ";" + expires+"; path=/;" + " domain=" + domain + ";";
+    }
+
+    function readCookie(name)
+    {
+        var nameEQ = name + "=";
+        var ca = document.cookie.split(';');
+        for(var i=0; i < ca.length;i++)
+        {
+            var c = ca[i];
+            while (c.charAt(0)==' ') c = c.substring(1,c.length);
+            if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+        }
+        return null;
+    }
+
+    function deleteCookie(name)
+    {
+        createCookie(name,"",-1);
+    }
+
+</script>
+
+<script>
+    var connection = $.hubConnection(signalrServerUrl + '/signalr');
+    connection.stateChanged(function (change)
+    {
+        switch (change.newState)
+        {
+            case $.signalR.connectionState.connecting:   console.log('Connecting');
+                                                         break;
+            case $.signalR.connectionState.connected:    {
+                                                            console.log('Connected');
+                                                            clearTimeout(signalrConnectionTimer);
+                                                            removeAllDisplayedOrders();
+                                                            hubProxy.invoke('GetAllOrders', document.cookie);
+                                                         }
+                                                         break;
+            case $.signalR.connectionState.reconnecting: console.log('Re-connecting');
+                                                         break;
+            case $.signalR.connectionState.disconnected: {
+                                                            clearTimeout(signalrConnectionTimer);
+                                                            signalrConnectionTimer = startSignalrConnectionTimer();
+                                                            console.log('Disconnected');
+                                                         }
+                                                         break;
+            default: break;
+        }
+    });
+
+    var hubProxy = connection.createHubProxy(signalrHubName);
+    if (hubProxy !== undefined)
+    {
+        alert("Hub ok");
+        hubProxy.on('jsAddOrders', function(orders)
+        {
+            addDisplayedOrders(orders)
+        });
+
+        hubProxy.on('jsAddOrder', function(order)
+        {
+            addDisplayedOrder(order);
+        });
+
+        hubProxy.on('jsRemoveOrder', function(orderId)
+        {
+            removeDisplayedOrder(orderId);
+        });
+
+        hubProxy.on('jsUpdateOrder', function(orderId)
+        {
+
+        });
+
+        hubProxy.on('jsLockOrderAccepted', function(order, val)
+        {
+            alert('ordAccept ' + !!val);
+            modifyDisplayedOrder(order);
+            val = !!val;
+            if (val === true)
+            {
+                var rowId = orderIdPrefix + order.id;
+                $('#' + rowId).css('background-color', '#22FF22');
+            }
+        });
+
+        hubProxy.on('jsUnlockOrder', function(order)
+        {
+            alert('jsUnlockOrder' + order.status);
+            modifyDisplayedOrder(order);
+        });
+
+        hubProxy.on('jsCreateCookie', function(domain, name, value, days)
+        {
+            createCookie(domain, name, value, days);
+            showAuthenticateForm(false);
+        });
+
+        hubProxy.on('jsDeleteCookie', function(name)
+        {
+            deleteCookie(name);
+            showAuthenticateForm(true);
+        });
+    }
+    signalrConnectionTimer = startSignalrConnectionTimer();
+</script>
+
+<script>
+    function removeAllDisplayedOrders()
+    {
+        $('.' + orderRowClassName).remove();
+    }
+
+    function addDisplayedOrders(orders)
+    {
+        for (var i = 0; i < orders.length; i++)
+        {
+            var order = orders[i];
+            addDisplayedOrder(order);
+        }
+    }
+
+    function addDisplayedOrder(order)
+    {
+        orderIdsSet = getDisplayedOrderIds();
+        var rowId = orderIdPrefix + order.id;
+        var rowContent = '<td>' + order.id + '</td>' + '<td>' + order.ownerId + '</td>' + '<td>' + order.instrumentId + '</td>' + '<td>' + order.createdDate + '</td>' + '<td>' + order.endDate + '</td>' + '<td>' + order.type + '</td>'  + '<td>' + order.price + '</td>' + '<td>' + order.amount + '</td>' + '<td>' + order.status + '</td>' + '<td>' + order.executorId + '</td>' + '<td>' + order.executionDate + '</td>';
+        $('#ordersTableBody').append('<tr class="' + orderRowClassName + '" id=' + rowId + ' onclick="onRowClick(this)"' + '>' + rowContent + '</tr>');
+        highlightRowByStatus(rowId, order.status);
+    }
+
+    function modifyDisplayedOrder(order)
+    {
+        orderIdsSet = getDisplayedOrderIds();
+        if (orderIdsSet.has(order.id + ""))
+        {
+            var rowId = orderIdPrefix + order.id;
+            var rowContent = '<td>' + order.id + '</td>' + '<td>' + order.ownerId + '</td>' + '<td>' + order.instrumentId + '</td>' + '<td>' + order.createdDate + '</td>' + '<td>' + order.endDate + '</td>' + '<td>' + order.type + '</td>'  + '<td>' + order.price + '</td>' + '<td>' + order.amount + '</td>' + '<td>' + order.status + '</td>' + '<td>' + order.executorId + '</td>' + '<td>' + order.executionDate + '</td>';
+            $("#" + rowId).html(rowContent);
+            highlightRowByStatus(rowId, order.status);
+        }
+    }
+
+    function removeDisplayedOrder(orderId)
+    {
+        orderId = orderId + "";
+        orderIdsSet = getDisplayedOrderIds();
+        if (orderIdsSet.has(orderId))
+        {
+            $("#" + orderIdPrefix + orderId).remove();
+        }
+    }
+
+    function getDisplayedOrderIds()
+    {
+        var orderSet = new Set();
+        $('.' + orderRowClassName).each(function(i)
+        {
+            orderId = getDisplayedOrderId(this);
+            orderSet.add(orderId);
+        });
+        return orderSet;
+    }
+
+    function getDisplayedOrderId(row)
+    {
+        var orderId = row.id.substring(orderIdPrefix.length, row.id.length);
+        return orderId;
+    }
+
+    function onRowClick(row)
+    {
+        var orderId = getDisplayedOrderId(row);
+        orderId = +orderId;
+        alert('row clicked ' + orderId);
+        hubProxy.invoke('lockOrder', orderId, document.cookie);
+    }
+
+    function highlightRowByStatus(rowId, orderStatus)
+    {
+        switch (orderStatus)
+        {
+            case 'New' : $('#' + rowId).css('background-color', '#FFFFFF'); break;
+            case 'Locked' : $('#' + rowId).css('background-color', '#ff2222'); break;
+            default : break;
+        }
+    }
 
 </script>
 
