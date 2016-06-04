@@ -95,7 +95,7 @@ Hello
     <button type="button" class="btn btn-default" onclick="addOrderButtonClick()">Add Order</button>
     <div id="rightFooterSide">
         <button id='logoutButton' type="button" class="connection-button btn btn-default" onclick="sendLogoutRequest()">Logout</button>
-        <button type="button" class="btn btn-success">Connected</button>
+        <button id='connectionStateButton' type="button" class="btn btn-success">Connected</button>
     </div>
 </div>
 
@@ -128,6 +128,7 @@ Hello
     var orderIdPrefix = 'order_';
     var orderRowClassName = 'orderRow';
     var myOrdersLinkId = 'myorders';
+    var bootboxConfirm = null;
 
     $(document).ready(function()
     {
@@ -158,6 +159,8 @@ Hello
             var disclosureButton = ' <span class="caret">';
             $('#orderInstrumentButton').html($(this).text() + disclosureButton);
         });
+
+
     });
 
     function startSignalrConnectionTimer()
@@ -281,20 +284,28 @@ Hello
     {
         switch (change.newState)
         {
-            case $.signalR.connectionState.connecting:   console.log('Connecting');
+            case $.signalR.connectionState.connecting:   {
+                                                            console.log('Connecting');
+                                                            $('#connectionStateButton').text('Connecting').attr('class', 'btn btn-warning');
+                                                         }
                                                          break;
             case $.signalR.connectionState.connected:    {
                                                             console.log('Connected');
                                                             clearTimeout(signalrConnectionTimer);
                                                             removeAllDisplayedOrders();
+                                                            $('#connectionStateButton').text('Connected').attr('class', 'btn btn-success');
                                                             hubProxy.invoke('GetAllOrders', document.cookie);
                                                          }
                                                          break;
-            case $.signalR.connectionState.reconnecting: console.log('Re-connecting');
+            case $.signalR.connectionState.reconnecting: {
+                                                            console.log('Re-connecting');
+                                                            $('#connectionStateButton').text('Reconnecting').attr('class', 'btn btn-warning');
+                                                         }
                                                          break;
             case $.signalR.connectionState.disconnected: {
                                                             clearTimeout(signalrConnectionTimer);
                                                             signalrConnectionTimer = startSignalrConnectionTimer();
+                                                            $('#connectionStateButton').text('Disconnected').attr('class', 'btn btn-danger');
                                                             console.log('Disconnected');
                                                          }
                                                          break;
@@ -328,21 +339,58 @@ Hello
 
         hubProxy.on('jsLockOrderAccepted', function(order, val)
         {
-            alert('ordAccept ' + !!val);
             modifyDisplayedOrder(order);
             val = !!val;
             if (val === true)
             {
                 var rowId = orderIdPrefix + order.id;
                 $('#' + rowId).css('background-color', '#22FF22');
+
+                var userOrderType = order.type === 'Buy' ? 'Sell' : 'Buy';
+                bootboxConfirm = bootbox.confirm({
+                    title: "Confirm operation",
+                    message: 'Are you sure you want ' + userOrderType + ' ' + order.amount + ' ' + order.instrumentId + ' ' + ' for ' + order.price,
+                    buttons: {
+                        cancel:
+                        {
+                            label: "Cancel",
+                            className: "btn-default pull-right"
+                        },
+                        confirm:
+                        {
+                            label: "Ok",
+                            className: "btn-primary pull-left"
+                        }
+                    },
+                    callback: function(result)
+                    {
+                        if (result === true)
+                        {
+                            hubProxy.invoke('executeOrder', document.cookie, order.id);
+                            this.modal('hide');
+                        }
+                    }
+                });
+            }
+            else
+            {
+                if (bootboxConfirm != null) bootboxConfirm.modal('hide');
             }
         });
 
         hubProxy.on('jsUnlockOrder', function(order)
         {
             alert('jsUnlockOrder' + order.status);
+            if (bootboxConfirm != null) bootboxConfirm.modal('hide');
             modifyDisplayedOrder(order);
         });
+
+        hubProxy.on('jsExecuteOrderAccepted', function(order)
+        {
+            alert('jsExecuteOrderAccepted ' + order.status);
+            modifyDisplayedOrder(order);
+        });
+
 
         hubProxy.on('jsCreateCookie', function(domain, name, value, days)
         {
@@ -427,7 +475,7 @@ Hello
         var orderId = getDisplayedOrderId(row);
         orderId = +orderId;
         alert('row clicked ' + orderId);
-        hubProxy.invoke('lockOrder', orderId, document.cookie);
+        hubProxy.invoke('lockOrder', document.cookie, orderId);
     }
 
     function highlightRowByStatus(rowId, orderStatus)
@@ -436,6 +484,7 @@ Hello
         {
             case 'New' : $('#' + rowId).css('background-color', '#FFFFFF'); break;
             case 'Locked' : $('#' + rowId).css('background-color', '#ff2222'); break;
+            case 'Executed' : $('#' + rowId).css('background-color', '#FFFFFF'); break;
             default : break;
         }
     }
