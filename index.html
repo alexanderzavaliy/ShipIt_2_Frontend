@@ -24,6 +24,18 @@ Hello
             </div>
             <div class="modal-body">
                 <div class="btn-group">
+                    <button id="orderInstrumentButton" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">USD<span class="caret"></span>
+                    </button>
+                    <ul id="orderInstrumentItems" class="dropdown-menu">
+                        <li><a href="#">USD</a></li>
+                        <li><a href="#">EUR</a></li>
+                        <li><a href="#">GRN</a></li>
+                        <li role="separator" class="divider"></li>
+                        <li><a href="#">ILS</a></li>
+                    </ul>
+                </div>
+                <div class="help-block"></div>
+                <div class="btn-group">
                     <button id="orderTypeButton" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         Buy
                         <span class="caret"></span>
@@ -33,20 +45,6 @@ Hello
                         <li><a href="#">Buy</a></li>
                         <li><a href="#">Sell</a></li>
                         <li role="separator" class="divider"></li>
-                    </ul>
-                </div>
-                <div class="help-block"></div>
-                <div class="btn-group">
-                    <button id="orderInstrumentButton" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        USD
-                        <span class="caret"></span>
-                    </button>
-                    <ul id="orderInstrumentItems" class="dropdown-menu">
-                        <li><a href="#">USD</a></li>
-                        <li><a href="#">EUR</a></li>
-                        <li><a href="#">GRN</a></li>
-                        <li role="separator" class="divider"></li>
-                        <li><a href="#">ILS</a></li>
                     </ul>
                 </div>
                 <div class="help-block"></div>
@@ -160,8 +158,8 @@ Hello
 
     $('#confirmAddOrder').on('click', function ()
     {
-        var type = $('#orderTypeButton').text();
-        var instrument = $('#orderTypeButton').text();
+        var type = $('#orderTypeButton').text().replace('\n', '').trim();
+        var instrument = $('#orderInstrumentButton').text().replace('\n', '').trim();
         var amount = $('#amount').val();
         var price = $('#price').val();
         if ((instrument !== "") && ((price !== "") || (amount !== ""))) {
@@ -180,7 +178,7 @@ Hello
             }
             else
             {
-                hubProxy.invoke('insertOrder', document.cookie, 1, 777, type, price, amount);
+                hubProxy.invoke('insertOrder', document.cookie, instrument, type, price, amount);
             }
         }
         else
