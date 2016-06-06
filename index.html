@@ -13,13 +13,11 @@
 <a id="myorders" href="">Manage my orders</a>
 Hello
 
-
-
 <!-- Modal -->
-<div class="modal fade" id="myModal" role="dialog">
+<div class="modal fade" id="addOrderForm" role="dialog">
     <div class="modal-dialog">
         <!-- Modal content-->
-        <div class="modal-content">
+        <div class="modal-content" style="width: 400px">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
                 <h4 class="modal-title">Add Order</h4>
@@ -44,11 +42,11 @@ Hello
                         <span class="caret"></span>
                     </button>
                     <ul id="orderInstrumentItems" class="dropdown-menu">
-                        <li><a href="#">Action</a></li>
-                        <li><a href="#">Another action</a></li>
-                        <li><a href="#">Something else here</a></li>
+                        <li><a href="#">USD</a></li>
+                        <li><a href="#">EUR</a></li>
+                        <li><a href="#">GRN</a></li>
                         <li role="separator" class="divider"></li>
-                        <li><a href="#">Separated link</a></li>
+                        <li><a href="#">ILS</a></li>
                     </ul>
                 </div>
                 <div class="help-block"></div>
@@ -61,7 +59,7 @@ Hello
                 </div>
             </div>
             <div class="modal-footer">
-                <button id='confirmAddOrder' type="button" class="btn btn-primary" data-dismiss="modal" style="float:left">Ok</button>
+                <button id="confirmAddOrder" type="button" class="btn btn-primary" data-dismiss="modal" style="float:left">Ok</button>
                 <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
             </div>
         </div>
@@ -91,77 +89,26 @@ Hello
     </table>
 </div>
 
+<div id="spacerDiv"></div>
+
 <div id="footer">
-    <button type="button" class="btn btn-default" onclick="addOrderButtonClick()">Add Order</button>
+    <button id="addOrderButton" type="button" class="btn btn-default">Add Order</button>
     <div id="rightFooterSide">
-        <button id='logoutButton' type="button" class="connection-button btn btn-default" onclick="sendLogoutRequest()">Logout</button>
-        <button id='connectionStateButton' type="button" class="btn btn-success">Connected</button>
+        <button id="logoutButton" type="button" class="connection-button btn btn-default">Logout</button>
+        <button id="connectionStateButton" type="button" class="btn btn-success">Connected</button>
     </div>
 </div>
-
-
-<div id="openModal" class="modalDialog">
-    <div>
-        <div class="help-block"></div>
-        <div class="col-xs-25">
-            <input id='login' type="text" class="form-control" placeholder="Login" aria-describedby="basic-addon1">
-        </div>
-        <div class="help-block"></div>
-        <div class="col-xs-25">
-            <input id='password' type="text" class="form-control" placeholder="Password" aria-describedby="basic-addon1">
-        </div>
-        <div class="help-block"></div>
-        <div class="col-xs-25">
-            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Enter</button>
-            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Forgot</button>
-            <button type="button" class="btn btn-default" onclick="sendLoginRequest()">Register</button>
-        </div>
-    </div>
-</div>
-
 
 <script>
-    var htmlServerUrl = 'http://localhost:8200';
+    var htmlServerUrl = 'http://' + document.location.host;
     var signalrServerUrl = 'http://localhost:8100';
+    var loginPageName = 'login.html';
     var signalrHubName = 'ordersHub';
     var signalrConnectionTimer;
     var orderIdPrefix = 'order_';
     var orderRowClassName = 'orderRow';
     var myOrdersLinkId = 'myorders';
     var bootboxConfirm = null;
-
-    $(document).ready(function()
-    {
-        $('#' + myOrdersLinkId).click(function()
-        {
-            console.log('clicked');
-            var win = window.open(htmlServerUrl + '/myorders.html', '_blank');
-            if(win)
-            {
-                //Browser has allowed it to be opened
-                win.focus();
-            }
-            else
-            {
-                //Broswer has blocked it
-                alert('Please allow popups for this site');
-            }
-        });
-
-        $('#orderTypeItems li').on('click', function()
-        {
-            var disclosureButton = ' <span class="caret">';
-            $('#orderTypeButton').html($(this).text() + disclosureButton);
-        });
-
-        $('#orderInstrumentItems li').on('click', function()
-        {
-            var disclosureButton = ' <span class="caret">';
-            $('#orderInstrumentButton').html($(this).text() + disclosureButton);
-        });
-
-
-    });
 
     function startSignalrConnectionTimer()
     {
@@ -178,72 +125,83 @@ Hello
         }, 5000);
     }
 
-
-
-    function addOrderButtonClick()
+    $('#' + myOrdersLinkId).click(function()
     {
-        //<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#myModal">Open Modal</button>
-        $('#myModal').on('shown.bs.modal', function ()
+        console.log('clicked');
+        var win = window.open(htmlServerUrl + '/myorders.html', '_blank');
+        if(win)
         {
-            $('#confirmAddOrder').focus();
-            var type = $('#orderTypeButton').text();
-            var instrument = $('#orderTypeButton').text();
-            var amount = $('#amount').val();
-            var price = $('#price').val();
-            if ((currency !== "") && ((price !== "") || (amount !== ""))) {
-                price = +price;
-                amount = +amount;
-                var errMsg = "";
-                if ((amount === NaN) || (amount % 1 !== 0)) {
-                    errMsg += 'amount - should be integer; ';
-                }
-                if (isNaN(price)) {
-                    errMsg += 'price - should be integer or float, dot-separated ';
-                }
-                if (errMsg !== "") {
-                    alert(errMsg);
-                    return;
-                }
-                else
-                {
-                    hubProxy.invoke('insertOrder', type, currency, amount, price, poster);
-                }
+            //Browser has allowed it to be opened
+            win.focus();
+        }
+        else
+        {
+            //Broswer has blocked it
+            alert('Please allow popups for this site');
+        }
+    });
+
+    $('#orderTypeItems li').on('click', function()
+    {
+        var disclosureButton = ' <span class="caret">';
+        $('#orderTypeButton').html($(this).text() + disclosureButton);
+    });
+
+    $('#orderInstrumentItems li').on('click', function()
+    {
+        var disclosureButton = ' <span class="caret">';
+        $('#orderInstrumentButton').html($(this).text() + disclosureButton);
+    });
+
+    $('#addOrderForm').on('shown.bs.modal', function ()
+    {
+        $('#confirmAddOrder').focus();
+    })
+
+    $('#confirmAddOrder').on('click', function ()
+    {
+        var type = $('#orderTypeButton').text();
+        var instrument = $('#orderTypeButton').text();
+        var amount = $('#amount').val();
+        var price = $('#price').val();
+        if ((instrument !== "") && ((price !== "") || (amount !== ""))) {
+            price = +price;
+            amount = +amount;
+            var errMsg = "";
+            if ((amount === NaN) || (amount % 1 !== 0)) {
+                errMsg += 'amount - should be integer; ';
+            }
+            if (isNaN(price)) {
+                errMsg += 'price - should be integer or float, dot-separated ';
+            }
+            if (errMsg !== "") {
+                alert(errMsg);
+                return;
             }
             else
             {
-                alert('Currency AND (price OR amount) fields should be filled');
-            }
-        })
-        $('#myModal').modal();
-    }
-
-    function sendLogoutRequest()
-    {
-        hubProxy.invoke('logout', document.cookie);
-    }
-
-    function showAuthenticateForm(val)
-    {
-        if (typeof val === 'boolean')
-        {
-            if (val === true)
-            {
-                $('#openModal').css('opacity', '1.0');
-                $('#openModal').css('pointer-events', 'auto');
-            }
-            else
-            {
-                $('#openModal').css('opacity', '0.0');
-                $('#openModal').css('pointer-events', 'none');
+                hubProxy.invoke('insertOrder', document.cookie, 1, 777, type, price, amount);
             }
         }
-    }
+        else
+        {
+            alert('Instrument AND (price OR amount) fields should be filled');
+        }
+    });
 
-    function sendLoginRequest()
+    $('#addOrderButton').on('click', function ()
     {
-        var login = $('#login').val();
-        var password = 	$('#password').val();
-        hubProxy.invoke('login', login, password);
+        $('#addOrderForm').modal();
+    });
+
+    $('#logoutButton').on('click', function()
+    {
+        hubProxy.invoke('logout', document.cookie);
+    })
+
+    function redirectToLoginPage()
+    {
+        document.location.replace('http://' + document.location.host + '/' + loginPageName);
     }
 
     function createCookie(domain, name,value,days)
@@ -256,19 +214,6 @@ Hello
         }
         else var expires = "";
         document.cookie = name+"="+value+ ";" + expires+"; path=/;" + " domain=" + domain + ";";
-    }
-
-    function readCookie(name)
-    {
-        var nameEQ = name + "=";
-        var ca = document.cookie.split(';');
-        for(var i=0; i < ca.length;i++)
-        {
-            var c = ca[i];
-            while (c.charAt(0)==' ') c = c.substring(1,c.length);
-            if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
-        }
-        return null;
     }
 
     function deleteCookie(name)
@@ -294,6 +239,7 @@ Hello
                                                             clearTimeout(signalrConnectionTimer);
                                                             removeAllDisplayedOrders();
                                                             $('#connectionStateButton').text('Connected').attr('class', 'btn btn-success');
+                                                            hubProxy.invoke('validateCookies', document.cookie);
                                                             hubProxy.invoke('GetAllOrders', document.cookie);
                                                          }
                                                          break;
@@ -401,7 +347,7 @@ Hello
         hubProxy.on('jsDeleteCookie', function(name)
         {
             deleteCookie(name);
-            showAuthenticateForm(true);
+            redirectToLoginPage();
         });
     }
     signalrConnectionTimer = startSignalrConnectionTimer();
