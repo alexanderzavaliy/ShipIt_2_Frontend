@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="css/history.css">
+    <link rel="stylesheet" type="text/css" href="/scripts/bootstrap-3.3.6-dist/css/bootstrap.min.css">
+    <script src="/scripts/jquery/jquery-1.10.2.min.js" type="text/javascript"></script>
+    <script src="/scripts/signalr/jquery.signalR-2.2.0.min.js" type="text/javascript"></script>
+    <script src="/scripts/bootstrap-3.3.6-dist/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/scripts/bootbox-4.4.0/bootbox.js" type="text/javascript"></script>
+
+</head>
+<body>
+
+<div id="ordersContainer">
+    <table id="ordersTable" class="table table-bordered table-hover">
+        <thead>
+        <tr>
+            <th>ownerEmail</th>
+            <th>ownerScype</th>
+            <th>instrumentName</th>
+            <th>createdDate</th>
+            <th>endDate</th>
+            <th>type</th>
+            <th>price</th>
+            <th>amount</th>
+            <th>status</th>
+            <th>executorEmail</th>
+            <th>executorScype</th>
+            <th>executionDate</th>
+        </tr>
+        </thead>
+        <tbody id="ordersTableBody">
+        </tbody>
+    </table>
+</div>
+
+<div id="spacerDiv"></div>
+
+<div id="footer">
+    <div id="rightFooterSide">
+        <button id="logoutButton" type="button" class="connection-button btn btn-default">Logout</button>
+        <button id="connectionStateButton" type="button" class="btn btn-success">Connected</button>
+    </div>
+</div>
+
+<script>
+    var htmlServerUrl = 'http://' + document.location.host;
+    var signalrServerUrl = 'http://localhost:8100';
+    var loginPageName = 'login.html';
+    var signalrHubName = 'ordersHub';
+    var signalrConnectionTimer;
+    var orderIdPrefix = 'order_';
+    var orderRowClassName = 'orderRow';
+    var myOrdersLinkId = 'myorders';
+    var myOrdersLinkPageName = 'myorders.html';
+    var historyLinkId = 'history.html';
+    var historyLinkPageName = 'history.html';
+    var bootboxConfirm = null;
+
+    function startSignalrConnectionTimer()
+    {
+        return setInterval(function()
+        {
+            console.log("tick");
+            connection.start().done(function()
+            {
+                console.log('Now connected, connection ID=' + connection.id);
+            }).fail(function()
+            {
+                console.log('Could not connect');
+            });
+        }, 5000);
+    }
+
+    $('#logoutButton').on('click', function()
+    {
+        hubProxy.invoke('logout');
+    })
+
+    function redirectToLoginPage()
+    {
+        document.location.replace('http://' + document.location.host + '/' + loginPageName);
+    }
+
+    function createCookie(domain, name,value,days)
+    {
+        if (days)
+        {
+            var date = new Date();
+            date.setTime(date.getTime()+(days*24*60*60*1000));
+            var expires = " expires="+date.toGMTString();
+        }
+        else var expires = "";
+        document.cookie = name+"="+value+ ";" + expires+"; path=/;" + " domain=" + domain + ";";
+    }
+
+    function deleteCookie(name)
+    {
+        createCookie(name,"",-1);
+    }
+
+</script>
+
+<script>
+    var connection = $.hubConnection(signalrServerUrl + '/signalr');
+    connection.stateChanged(function (change)
+    {
+        switch (change.newState)
+        {
+            case $.signalR.connectionState.connecting:   {
+                                                            console.log('Connecting');
+                                                            $('#connectionStateButton').text('Connecting').attr('class', 'btn btn-warning');
+                                                         }
+                                                         break;
+            case $.signalR.connectionState.connected:    {
+                                                            console.log('Connected');
+                                                            clearTimeout(signalrConnectionTimer);
+                                                            removeAllDisplayedOrders();
+                                                            $('#connectionStateButton').text('Connected').attr('class', 'btn btn-success');
+                                                            hubProxy.invoke('validateCookies');
+                                                            hubProxy.invoke('getOrdersHistory');
+                                                          }
+                                                          break;
+            case $.signalR.connectionState.reconnecting:  {
+                                                            console.log('Re-connecting');
+                                                            $('#connectionStateButton').text('Reconnecting').attr('class', 'btn btn-warning');
+                                                          }
+                                                          break;
+            case $.signalR.connectionState.disconnected:  {
+                                                            clearTimeout(signalrConnectionTimer);
+                                                            signalrConnectionTimer = startSignalrConnectionTimer();
+                                                            $('#connectionStateButton').text('Disconnected').attr('class', 'btn btn-danger');
+                                                            console.log('Disconnected');
+                                                          }
+                                                          break;
+            default: break;
+        }
+    });
+
+    var hubProxy = connection.createHubProxy(signalrHubName);
+    if (hubProxy !== undefined)
+    {
+        alert("Hub ok");
+        hubProxy.on('jsAddOrdersHistory', function(orders)
+        {
+            addDisplayedOrders(orders)
+        });
+
+        hubProxy.on('jsAddOrderHistory', function(order)
+        {
+            alert('jsAddOrderHistory');
+            addDisplayedOrder(order);
+        });
+
+        hubProxy.on('jsCreateCookie', function(domain, name, value, days)
+        {
+            createCookie(domain, name, value, days);
+            showAuthenticateForm(false);
+        });
+
+        hubProxy.on('jsDeleteCookie', function(name)
+        {
+            deleteCookie(name);
+            redirectToLoginPage();
+        });
+    }
+    signalrConnectionTimer = startSignalrConnectionTimer();
+</script>
+
+<script>
+
+    function removeAllDisplayedOrders()
+    {
+        $('.' + orderRowClassName).remove();
+    }
+
+    function addDisplayedOrders(orders)
+    {
+        for (var i = 0; i < orders.length; i++)
+        {
+            var order = orders[i];
+            addDisplayedOrder(order);
+        }
+    }
+
+    function addDisplayedOrder(order)
+    {
+        var rowId = orderIdPrefix + order.id;
+        var ownerEmailTd = WrapWithTdElement(order.ownerEmail);
+        var ownerScypeTd = WrapWithTdElement(order.ownerScype);
+        var instrumentShortNameTd = WrapWithTdElement(order.instrumentShortName);
+        var createdDateStrTd = WrapWithTdElement(order.createdDateStr);
+        var endDateStrTd = WrapWithTdElement(order.endDateStr);
+        var typeTd = WrapWithTdElement(order.type);
+        var priceTd = WrapWithTdElement(order.price);
+        var amountTd = WrapWithTdElement(order.amount);
+        var statusTd = WrapWithTdElement(order.status);
+        var executorEmail = WrapWithTdElement(order.executorEmail);
+        var executorScype = WrapWithTdElement(order.executorScype);
+        var executionDateStrTd = WrapWithTdElement(order.executionDateStr);
+        var rowContent = ownerEmailTd + ownerScypeTd + instrumentShortNameTd + createdDateStrTd + endDateStrTd + typeTd + priceTd + amountTd + statusTd + executorEmail + executorScype + executionDateStrTd;
+        $('#ordersTableBody').append('<tr class="' + orderRowClassName + '" id=' + rowId + ' onclick="onRowClick(this)"' + '>' + rowContent + '</tr>');
+    }
+
+    function WrapWithTdElement(str)
+    {
+        return '<td>' + str + '</td>';
+    }
+
+</script>
+
+</body>
+</html>

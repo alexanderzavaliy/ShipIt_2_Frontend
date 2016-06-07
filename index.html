@@ -12,6 +12,7 @@
 <body>
 <a id="myorders" href="">Manage my orders</a>
 Hello
+<a id="historyLink" href="">History</a>
 
 <!-- Modal -->
 <div class="modal fade" id="addOrderForm" role="dialog">
@@ -106,6 +107,9 @@ Hello
     var orderIdPrefix = 'order_';
     var orderRowClassName = 'orderRow';
     var myOrdersLinkId = 'myorders';
+    var myOrdersLinkPageName = 'myorders.html';
+    var historyLinkId = 'historyLink';
+    var historyLinkPageName = 'history.html';
     var bootboxConfirm = null;
 
     function startSignalrConnectionTimer()
@@ -126,7 +130,7 @@ Hello
     $('#' + myOrdersLinkId).click(function()
     {
         console.log('clicked');
-        var win = window.open(htmlServerUrl + '/myorders.html', '_blank');
+        var win = window.open(htmlServerUrl + '/' + myOrdersLinkPageName, '_blank');
         if(win)
         {
             //Browser has allowed it to be opened
@@ -137,6 +141,11 @@ Hello
             //Broswer has blocked it
             alert('Please allow popups for this site');
         }
+    });
+
+    $('#' + historyLinkId).click(function()
+    {
+        var win = window.open(htmlServerUrl + '/' + historyLinkPageName, '_blank');
     });
 
     $('#orderTypeItems li').on('click', function()
@@ -178,7 +187,7 @@ Hello
             }
             else
             {
-                hubProxy.invoke('insertOrder', document.cookie, instrument, type, price, amount);
+                hubProxy.invoke('insertOrder', instrument, type, price, amount);
             }
         }
         else
@@ -194,7 +203,7 @@ Hello
 
     $('#logoutButton').on('click', function()
     {
-        hubProxy.invoke('logout', document.cookie);
+        hubProxy.invoke('logout');
     })
 
     function redirectToLoginPage()
@@ -237,8 +246,8 @@ Hello
                                                             clearTimeout(signalrConnectionTimer);
                                                             removeAllDisplayedOrders();
                                                             $('#connectionStateButton').text('Connected').attr('class', 'btn btn-success');
-                                                            hubProxy.invoke('validateCookies', document.cookie);
-                                                            hubProxy.invoke('GetAllOrders', document.cookie);
+                                                            hubProxy.invoke('validateCookies');
+                                                            hubProxy.invoke('GetAllOrders');
                                                          }
                                                          break;
             case $.signalR.connectionState.reconnecting: {
@@ -284,41 +293,46 @@ Hello
         hubProxy.on('jsLockOrderAccepted', function(order, val)
         {
             modifyDisplayedOrder(order);
-            val = !!val;
-            if (val === true)
-            {
-                var rowId = orderIdPrefix + order.id;
-                $('#' + rowId).css('background-color', '#22FF22');
 
-                var userOrderType = order.type === 'Buy' ? 'Sell' : 'Buy';
-                bootboxConfirm = bootbox.confirm({
-                    title: "Confirm operation",
-                    message: 'Are you sure you want ' + userOrderType + ' ' + order.amount + ' ' + order.instrumentId + ' ' + ' for ' + order.price,
-                    buttons: {
-                        cancel:
-                        {
-                            label: "Cancel",
-                            className: "btn-default pull-right"
-                        },
-                        confirm:
-                        {
-                            label: "Ok",
-                            className: "btn-primary pull-left"
-                        }
-                    },
-                    callback: function(result)
-                    {
-                        if (result === true)
-                        {
-                            hubProxy.invoke('executeOrder', document.cookie, order.id);
-                            this.modal('hide');
-                        }
-                    }
-                });
-            }
-            else
+            switch (val)
             {
-                if (bootboxConfirm != null) bootboxConfirm.modal('hide');
+                case "true":        //alert('true');
+                                    var rowId = orderIdPrefix + order.id;
+                                    $('#' + rowId).css('background-color', '#22FF22');
+
+                                    var userOrderType = order.type === 'Buy' ? 'Sell' : 'Buy';
+                                    bootboxConfirm = bootbox.confirm({
+                                        title: "Confirm operation",
+                                        message: 'Are you sure you want ' + userOrderType + ' ' + order.amount + ' ' + order.instrumentId + ' ' + ' for ' + order.price,
+                                        buttons: {
+                                            cancel:
+                                            {
+                                                label: "Cancel",
+                                                className: "btn-default pull-right"
+                                            },
+                                            confirm:
+                                            {
+                                                label: "Ok",
+                                                className: "btn-primary pull-left"
+                                            }
+                                        },
+                                        callback: function(result)
+                                        {
+                                            if (result === true)
+                                            {
+                                                hubProxy.invoke('executeOrder', order.id);
+                                                this.modal('hide');
+                                            }
+                                        }
+                                    });
+                                    break;
+                case "true_other":  //alert('true_other');
+                                    var rowId = orderIdPrefix + order.id;
+                                    $('#' + rowId).css('background-color', '#22FF22');
+                                    break;
+                case "false":       if (bootboxConfirm != null) bootboxConfirm.modal('hide');
+                                    break;
+                default: break;
             }
         });
 
@@ -329,10 +343,10 @@ Hello
             modifyDisplayedOrder(order);
         });
 
-        hubProxy.on('jsExecuteOrderAccepted', function(order)
+        hubProxy.on('jsExecuteOrderDone', function(order)
         {
-            alert('jsExecuteOrderAccepted ' + order.status);
-            modifyDisplayedOrder(order);
+            alert('jsExecuteOrderDone ' + order.status);
+            removeDisplayedOrder(order.id);
         });
 
 
@@ -419,7 +433,7 @@ Hello
         var orderId = getDisplayedOrderId(row);
         orderId = +orderId;
         alert('row clicked ' + orderId);
-        hubProxy.invoke('lockOrder', document.cookie, orderId);
+        hubProxy.invoke('lockOrder', orderId);
     }
 
     function highlightRowByStatus(rowId, orderStatus)
