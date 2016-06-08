@@ -140,7 +140,6 @@
     var hubProxy = connection.createHubProxy(signalrHubName);
     if (hubProxy !== undefined)
     {
-        alert("Hub ok");
         hubProxy.on('jsAddOrdersHistory', function(orders)
         {
             addDisplayedOrders(orders)
@@ -148,7 +147,6 @@
 
         hubProxy.on('jsAddOrderHistory', function(order)
         {
-            alert('jsAddOrderHistory');
             addDisplayedOrder(order);
         });
 
@@ -186,20 +184,35 @@
     function addDisplayedOrder(order)
     {
         var rowId = orderIdPrefix + order.id;
-        var ownerEmailTd = WrapWithTdElement(order.ownerEmail);
-        var ownerScypeTd = WrapWithTdElement(order.ownerScype);
-        var instrumentShortNameTd = WrapWithTdElement(order.instrumentShortName);
-        var createdDateStrTd = WrapWithTdElement(order.createdDateStr);
-        var endDateStrTd = WrapWithTdElement(order.endDateStr);
-        var typeTd = WrapWithTdElement(order.type);
-        var priceTd = WrapWithTdElement(order.price);
-        var amountTd = WrapWithTdElement(order.amount);
-        var statusTd = WrapWithTdElement(order.status);
-        var executorEmail = WrapWithTdElement(order.executorEmail);
-        var executorScype = WrapWithTdElement(order.executorScype);
-        var executionDateStrTd = WrapWithTdElement(order.executionDateStr);
-        var rowContent = ownerEmailTd + ownerScypeTd + instrumentShortNameTd + createdDateStrTd + endDateStrTd + typeTd + priceTd + amountTd + statusTd + executorEmail + executorScype + executionDateStrTd;
+        var td = createTdObject(order);
+        var rowContent = td.ownerEmail + td.ownerScype + td.instrumentShortName + td.createdDateStr + td.endDateStr + td.type + td.price + td.amount + td.status + td.executorEmail + td.executorScype + td.executionDateStr;
         $('#ordersTableBody').append('<tr class="' + orderRowClassName + '" id=' + rowId + ' onclick="onRowClick(this)"' + '>' + rowContent + '</tr>');
+    }
+
+    function createTdObject(order)
+    {
+        var td = {};
+        td.orderId = '<td style="display: none;">' + order.id + '</td>';
+        td.ownerId = '<td class="orderOwnerId" style="display: none;">' + order.ownerId + '</td>';
+        td.ownerEmail = '<td class="orderOwnerEmail">' + order.ownerEmail + '</td>';
+        td.ownerScype = '<td class="orderOwnerScype">' + order.ownerScype + '</td>';
+        td.instrumentId = '<td class="orderInstrumentId" style="display: none;">' + order.instrumentId + '</td>';
+        td.instrumentShortName = '<td class="orderInstrumentShortName">' + order.instrumentShortName + '</td>';
+        td.createdDate = '<td style="display: none;">' + order.createdDate + '</td>';
+        td.createdDateStr = '<td>' + order.createdDateStr + '</td>';
+        td.endDate = '<td style="display: none;">' + order.endDate + '</td>';
+        td.endDateStr = '<td>' + order.endDateStr + '</td>';
+
+        td.type = '<td class="orderType">' + order.type + '</td>';
+        td.price = '<td class="orderPrice">' + order.price + '</td>';
+        td.amount = '<td class="orderAmount">' + order.amount + '</td>';
+        td.status = '<td class="orderStatus">' + order.status + '</td>';
+        td.executorId = '<td style="display: none;">' + order.executorId + '</td>';
+        td.executorEmail = '<td class="orderExecutorEmail">' + order.executorEmail + '</td>';
+        td.executorScype = '<td class="orderExecutorScype">' + order.executorScype + '</td>';
+        td.executionDate = '<td style="display: none;">' + order.executionDate + '</td>';
+        td.executionDateStr = '<td>' + order.executionDateStr + '</td>';
+        return td;
     }
 
     function WrapWithTdElement(str)

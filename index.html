@@ -10,9 +10,6 @@
 
 </head>
 <body>
-<a id="myorders" href="">Manage my orders</a>
-Hello
-<a id="historyLink" href="">History</a>
 
 <!-- Modal -->
 <div class="modal fade" id="addOrderForm" role="dialog">
@@ -70,17 +67,11 @@ Hello
     <table id="ordersTable" class="table table-bordered table-hover">
         <thead>
             <tr>
-                <th>id</th>
-                <th>ownerId</th>
-                <th>instrumentId</th>
-                <th>createdDate</th>
-                <th>endDate</th>
                 <th>type</th>
+                <th>instrument</th>
                 <th>price</th>
                 <th>amount</th>
                 <th>status</th>
-                <th>executorId</th>
-                <th>executionDate</th>
             </tr>
         </thead>
         <tbody id="ordersTableBody">
@@ -92,6 +83,7 @@ Hello
 
 <div id="footer">
     <button id="addOrderButton" type="button" class="btn btn-default">Add Order</button>
+    <button id="historyButton" type="button" class="btn btn-default">History</button>
     <div id="rightFooterSide">
         <button id="logoutButton" type="button" class="connection-button btn btn-default">Logout</button>
         <button id="connectionStateButton" type="button" class="btn btn-success">Connected</button>
@@ -100,17 +92,17 @@ Hello
 
 <script>
     var htmlServerUrl = 'http://' + document.location.host;
-    var signalrServerUrl = 'http://localhost:8100';
     var loginPageName = 'login.html';
+    var historyLinkPageName = 'history.html';
+
+    var signalrServerUrl = 'http://localhost:8100';
     var signalrHubName = 'ordersHub';
     var signalrConnectionTimer;
+    var currentUserId = 0;
     var orderIdPrefix = 'order_';
     var orderRowClassName = 'orderRow';
-    var myOrdersLinkId = 'myorders';
-    var myOrdersLinkPageName = 'myorders.html';
-    var historyLinkId = 'historyLink';
-    var historyLinkPageName = 'history.html';
-    var bootboxConfirm = null;
+    var bootboxLockDialog = null;
+    var bootboxExecuteDialog = null;
 
     function startSignalrConnectionTimer()
     {
@@ -126,27 +118,6 @@ Hello
             });
         }, 5000);
     }
-
-    $('#' + myOrdersLinkId).click(function()
-    {
-        console.log('clicked');
-        var win = window.open(htmlServerUrl + '/' + myOrdersLinkPageName, '_blank');
-        if(win)
-        {
-            //Browser has allowed it to be opened
-            win.focus();
-        }
-        else
-        {
-            //Broswer has blocked it
-            alert('Please allow popups for this site');
-        }
-    });
-
-    $('#' + historyLinkId).click(function()
-    {
-        var win = window.open(htmlServerUrl + '/' + historyLinkPageName, '_blank');
-    });
 
     $('#orderTypeItems li').on('click', function()
     {
@@ -199,6 +170,11 @@ Hello
     $('#addOrderButton').on('click', function ()
     {
         $('#addOrderForm').modal();
+    });
+
+    $('#historyButton').on('click', function ()
+    {
+        window.open(htmlServerUrl + '/' + historyLinkPageName);
     });
 
     $('#logoutButton').on('click', function()
@@ -269,7 +245,11 @@ Hello
     var hubProxy = connection.createHubProxy(signalrHubName);
     if (hubProxy !== undefined)
     {
-        alert("Hub ok");
+        hubProxy.on('jsValidCookie', function(userId)
+        {
+            currentUserId = userId;
+        });
+
         hubProxy.on('jsAddOrders', function(orders)
         {
             addDisplayedOrders(orders)
@@ -280,9 +260,9 @@ Hello
             addDisplayedOrder(order);
         });
 
-        hubProxy.on('jsRemoveOrder', function(orderId)
+        hubProxy.on('jsRemoveOrder', function(order)
         {
-            removeDisplayedOrder(orderId);
+            removeDisplayedOrder(order.id);
         });
 
         hubProxy.on('jsUpdateOrder', function(orderId)
@@ -296,15 +276,13 @@ Hello
 
             switch (val)
             {
-                case "true":        //alert('true');
-                                    var rowId = orderIdPrefix + order.id;
-                                    $('#' + rowId).css('background-color', '#22FF22');
-
+                case "true":        var rowId = orderIdPrefix + order.id;
                                     var userOrderType = order.type === 'Buy' ? 'Sell' : 'Buy';
-                                    bootboxConfirm = bootbox.confirm({
+                                    bootboxLockDialog = bootbox.confirm({
                                         title: "Confirm operation",
                                         message: 'Are you sure you want ' + userOrderType + ' ' + order.amount + ' ' + order.instrumentId + ' ' + ' for ' + order.price,
-                                        buttons: {
+                                        buttons:
+                                        {
                                             cancel:
                                             {
                                                 label: "Cancel",
@@ -320,44 +298,40 @@ Hello
                                         {
                                             if (result === true)
                                             {
-                                                hubProxy.invoke('executeOrder', order.id);
-                                                this.modal('hide');
+                                                hubProxy.invoke('pendingOrder', order.id);
+                                            }
+                                            else
+                                            {
+                                                hubProxy.invoke('unlockOrder', order.id);
                                             }
                                         }
                                     });
                                     break;
-                case "true_other":  //alert('true_other');
-                                    var rowId = orderIdPrefix + order.id;
-                                    $('#' + rowId).css('background-color', '#22FF22');
-                                    break;
-                case "false":       if (bootboxConfirm != null) bootboxConfirm.modal('hide');
-                                    break;
+                case "true_other":  break;
+                case "false":       break;
                 default: break;
             }
         });
 
         hubProxy.on('jsUnlockOrder', function(order)
         {
-            alert('jsUnlockOrder' + order.status);
-            if (bootboxConfirm != null) bootboxConfirm.modal('hide');
+            if (bootboxLockDialog != null) bootboxLockDialog.modal('hide');
             modifyDisplayedOrder(order);
         });
 
-        hubProxy.on('jsExecuteOrderDone', function(order)
+        hubProxy.on('jsPendingOrderDone', function(order)
         {
-            alert('jsExecuteOrderDone ' + order.status);
-            removeDisplayedOrder(order.id);
+            modifyDisplayedOrder(order);
         });
 
-
-        hubProxy.on('jsCreateCookie', function(domain, name, value, days)
+        hubProxy.on('jsExecuteOrderDeclined', function (order)
         {
-            createCookie(domain, name, value, days);
-            showAuthenticateForm(false);
+            modifyDisplayedOrder(order);
         });
 
         hubProxy.on('jsDeleteCookie', function(name)
         {
+            currentUserId = -1;
             deleteCookie(name);
             redirectToLoginPage();
         });
@@ -371,6 +345,16 @@ Hello
         $('.' + orderRowClassName).remove();
     }
 
+    function removeDisplayedOrder(orderId)
+    {
+        orderId = orderId + "";
+        orderIdsSet = getDisplayedOrderIds();
+        if (orderIdsSet.has(orderId))
+        {
+            $("#" + orderIdPrefix + orderId).remove();
+        }
+    }
+
     function addDisplayedOrders(orders)
     {
         for (var i = 0; i < orders.length; i++)
@@ -382,11 +366,10 @@ Hello
 
     function addDisplayedOrder(order)
     {
-        orderIdsSet = getDisplayedOrderIds();
         var rowId = orderIdPrefix + order.id;
-        var rowContent = '<td>' + order.id + '</td>' + '<td>' + order.ownerId + '</td>' + '<td>' + order.instrumentId + '</td>' + '<td>' + order.createdDate + '</td>' + '<td>' + order.endDate + '</td>' + '<td>' + order.type + '</td>'  + '<td>' + order.price + '</td>' + '<td>' + order.amount + '</td>' + '<td>' + order.status + '</td>' + '<td>' + order.executorId + '</td>' + '<td>' + order.executionDate + '</td>';
+        var rowContent = generateRowContent(order);
         $('#ordersTableBody').append('<tr class="' + orderRowClassName + '" id=' + rowId + ' onclick="onRowClick(this)"' + '>' + rowContent + '</tr>');
-        highlightRowByStatus(rowId, order.status);
+        highlightRow(rowId, order);
     }
 
     function modifyDisplayedOrder(order)
@@ -395,56 +378,193 @@ Hello
         if (orderIdsSet.has(order.id + ""))
         {
             var rowId = orderIdPrefix + order.id;
-            var rowContent = '<td>' + order.id + '</td>' + '<td>' + order.ownerId + '</td>' + '<td>' + order.instrumentId + '</td>' + '<td>' + order.createdDate + '</td>' + '<td>' + order.endDate + '</td>' + '<td>' + order.type + '</td>'  + '<td>' + order.price + '</td>' + '<td>' + order.amount + '</td>' + '<td>' + order.status + '</td>' + '<td>' + order.executorId + '</td>' + '<td>' + order.executionDate + '</td>';
+            var rowContent = generateRowContent(order);
             $("#" + rowId).html(rowContent);
-            highlightRowByStatus(rowId, order.status);
+            highlightRow(rowId, order);
         }
     }
 
-    function removeDisplayedOrder(orderId)
+    function generateRowContent(order)
     {
-        orderId = orderId + "";
-        orderIdsSet = getDisplayedOrderIds();
-        if (orderIdsSet.has(orderId))
+        var rowContent = "";
+        var td = createTdObject(order);
+        var rowContent = td.orderId + td.type + td.instrumentShortName + td.price + td.amount + td.status + td.ownerId + td.ownerEmail + td.ownerScype + td.instrumentId + td.createdDate + td.endDate + td.executorId + td.executorEmail + td.executorScype + td.executionDate;
+        var deleteButton = "";
+        if (order.ownerId == currentUserId)
         {
-            $("#" + orderIdPrefix + orderId).remove();
+            var deleteButton = '<td>' + '<button type="button" class="btn btn-default" onclick="onDeleteOrderButtonClick(this)">Delete Order</button>' + '</td>';
         }
+        var rowContent = rowContent + deleteButton;
+        return rowContent;
     }
+
+    function createTdObject(order)
+    {
+        var td = {};
+        td.orderId = '<td style="display: none;">' + order.id + '</td>';
+        td.ownerId = '<td class="orderOwnerId" style="display: none;">' + order.ownerId + '</td>';
+        td.ownerEmail = '<td class="orderOwnerEmail" style="display: none;">' + order.ownerEmail + '</td>';
+        td.ownerScype = '<td class="orderOwnerScype" style="display: none;">' + order.ownerScype + '</td>';
+        td.instrumentId = '<td class="orderInstrumentId" style="display: none;">' + order.instrumentId + '</td>';
+        td.instrumentShortName = '<td class="orderInstrumentShortName">' + order.instrumentShortName + '</td>';
+        td.createdDate = '<td style="display: none;">' + order.createdDate + '</td>';
+        td.createdDateStr = '<td style="display: none;">' + order.createdDateStr + '</td>';
+        td.endDate = '<td style="display: none;">' + order.endDate + '</td>';
+        td.endDateStr = '<td style="display: none;">' + order.endDateStr + '</td>';
+
+        td.type = '<td class="orderType">' + order.type + '</td>';
+        td.price = '<td class="orderPrice">' + order.price + '</td>';
+        td.amount = '<td class="orderAmount">' + order.amount + '</td>';
+        td.status = '<td class="orderStatus">' + order.status + '</td>';
+        td.executorId = '<td style="display: none;">' + order.executorId + '</td>';
+        td.executorEmail = '<td class="orderExecutorEmail" style="display: none;">' + order.executorEmail + '</td>';
+        td.executorScype = '<td class="orderExecutorScype" style="display: none;">' + order.executorScype + '</td>';
+        td.executionDate = '<td style="display: none;">' + order.executionDate + '</td>';
+        td.executionDateStr = '<td style="display: none;">' + order.executionDateStr + '</td>';
+        return td;
+    }
+
 
     function getDisplayedOrderIds()
     {
         var orderSet = new Set();
         $('.' + orderRowClassName).each(function(i)
         {
-            orderId = getDisplayedOrderId(this);
+            orderId = getDisplayedOrderId(this.id);
             orderSet.add(orderId);
         });
         return orderSet;
     }
 
-    function getDisplayedOrderId(row)
+    function getDisplayedOrderId(rowId)
     {
-        var orderId = row.id.substring(orderIdPrefix.length, row.id.length);
+        var orderId = rowId.substring(orderIdPrefix.length, rowId.length);
         return orderId;
     }
 
     function onRowClick(row)
     {
-        var orderId = getDisplayedOrderId(row);
+        var orderId = getDisplayedOrderId(row.id);
         orderId = +orderId;
-        alert('row clicked ' + orderId);
-        hubProxy.invoke('lockOrder', orderId);
+        var orderData = getDisplayedOrderData(row.id);
+        if (orderData.status === "New")
+        {
+            hubProxy.invoke('lockOrder', orderId);
+        }
+        else if ((+orderData.ownerId === currentUserId) && (orderData.status === "Pending"))
+        {
+            bootboxExecuteDialog = bootbox.dialog(
+            {
+                title: "Confirm operation",
+                message: 'Are you sure you want to ' + orderData.type + ' ' + orderData.amount + ' ' + orderData.instrumentShortName + ' ' + ' for ' + orderData.price + ' ?\n' + ' Please contact executor: ' + orderData.executorEmail + " or " + orderData.executorScype + '.',
+                buttons:
+                {
+                    cancel:
+                    {
+                        label: "Cancel",
+                        className: "btn-default pull-right",
+                        callback: function ()
+                        {
+                            //Example.show("great success");
+                        }
+                    },
+                    reject:
+                    {
+                        label: "Reject",
+                        className: "btn-danger pull center",
+                        callback: function ()
+                        {
+                            hubProxy.invoke('executeOrder', +orderData.id, false);
+                        }
+                    },
+                    placeholder1:
+                    {
+                        className: "btn-default invisible",
+                    },
+                    placeholder2:
+                    {
+                        className: "btn-default invisible",
+                    },
+                    confirm:
+                    {
+                        label: "Accept",
+                        className: "btn-primary pull-left",
+                        callback: function ()
+                        {
+                            hubProxy.invoke('executeOrder', +orderData.id, true);
+                        }
+                    },
+                }
+            });
+        }
+        else
+        {
+
+        }
     }
 
-    function highlightRowByStatus(rowId, orderStatus)
+    function onDeleteOrderButtonClick(button)
     {
-        switch (orderStatus)
+        var rowId = $(button).closest('.' + orderRowClassName).attr('id');
+        var orderId = getDisplayedOrderId(rowId);
+        hubProxy.invoke('deleteOrder', +orderId);
+    }
+
+    function getDisplayedOrderData(rowId)
+    {
+        var orderData = {};
+        orderData.id =  rowId.substring(orderIdPrefix.length, rowId.length);
+        orderData.status = $('#' + rowId).find('.orderStatus').text();
+        orderData.ownerId = $('#' + rowId).find('.orderOwnerId').text();
+        orderData.ownerEmail = $('#' + rowId).find('.orderOwnerEmail').text();
+        orderData.ownerScype = $('#' + rowId).find('.orderOwnerScype').text();
+        orderData.instrumentId = $('#' + rowId).find('.orderInstrumentId').text();
+        orderData.instrumentShortName = $('#' + rowId).find('.orderInstrumentShortName').text();
+        orderData.type = $('#' + rowId).find('.orderType').text();
+        orderData.price = $('#' + rowId).find('.orderPrice').text();
+        orderData.amount = $('#' + rowId).find('.orderAmount').text();
+        orderData.executorEmail = $('#' + rowId).find('.orderExecutorEmail').text();
+        orderData.executorScype = $('#' + rowId).find('.orderExecutorScype').text();
+        return orderData;
+    }
+
+    function highlightRow(rowId, order)
+    {
+        switch (order.status)
         {
-            case 'New' : $('#' + rowId).css('background-color', '#FFFFFF'); break;
-            case 'Locked' : $('#' + rowId).css('background-color', '#ff2222'); break;
-            case 'Executed' : $('#' + rowId).css('background-color', '#FFFFFF'); break;
+            case 'New' :    $('#' + rowId).css('background-color', '#FFFFFF');
+                            break;
+            case 'Locked' : if (order.executorId === currentUserId)
+                            {
+                                $('#' + rowId).css('background-color', '#FFFF22');
+                            }
+                            else
+                            {
+                                $('#' + rowId).css('background-color', '#ff2222');
+                            }
+                            break;
+
+            case 'Pending' :
+                            if (order.ownerId === currentUserId)
+                            {
+                                $('#' + rowId).css('background-color', '#00FFFF'); break;
+                            }
+                            else if (order.executorId === currentUserId)
+                            {
+                                $('#' + rowId).css('background-color', '#22FF22'); break;
+                            }
+                            else
+                            {
+                                $('#' + rowId).css('background-color', '#ff2222');
+                            }
+
             default : break;
         }
+    }
+
+    function WrapWithTdElement(str)
+    {
+        return '<td>' + str + '</td>';
     }
 
 </script>
